@@ -369,5 +369,58 @@ db.restaurants.countDocuments({})
 docker cp rapport.js mongo-ipssi:/tmp/rapport.js
 docker exec mongo-ipssi mongosh -u admin -p ipssi2025 --authenticationDatabase admin nyc /tmp/rapport.js
 ```
+(équivalent à cette forme : `docker exec -i mongo-ipssi mongosh -u admin -p ipssi2025 --authenticationDatabase admin nyc < rapport.js`)
+
+Sortie obtenue :
+```
+1. Nombre total de restaurants : 25309
+
+2. Top 5 des cuisines les plus fréquentes :
+  1. American : 6173
+  2. Chinese : 2412
+  3. Café/Coffee/Tea : 1210
+  4. Pizza : 1162
+  5. Italian : 1069
+
+3. Nombre de restaurants par arrondissement :
+  Bronx : 2338
+  Brooklyn : 6086
+  Manhattan : 10259
+  Montpellier : 1
+  Queens : 5656
+  Staten Island : 969
+```
+
+**Écart sur le total** : 25309 (rapport) − 25359 (Q1) = **−50**.
+
+Détail opération par opération :
+- **Q20** (insertion du restaurant fictif "MP") : **+1** document
+- **Q25** (suppression des `borough: "Missing"`) : **−51** documents (`deletedCount: 51`)
+- Net : `+1 − 51 = −50` → cohérent avec l'écart observé
+
+Aucune autre question de la Partie 3 (Q21, Q22, Q23) ne modifie le nombre de documents : `$push`, `$set` ne font qu'ajouter/modifier des champs sur des documents existants, sans en créer ni en supprimer.
+
+**Valeur d'arrondissement inédite** : `Montpellier` (1 restaurant) — provient directement du restaurant fictif inséré en Q20 (`borough: "Montpellier"`), qui n'existait pas dans le jeu de données d'origine.
+
+**Q28.** Export de la collection `restaurants` limitée à `Staten Island` :
+```powershell
+docker exec mongo-ipssi mongoexport --username admin --password ipssi2025 --authenticationDatabase admin --db nyc --collection restaurants --query '{"borough":"Staten Island"}' --out /tmp/staten_island.json
+docker cp mongo-ipssi:/tmp/staten_island.json staten_island.json
+```
+```
+2026-08-25T08:05:50.295+0000	exported 969 records
+```
+-> **969 lignes** dans l'export (cohérent avec le comptage `Staten Island : 969` du rapport Q27).
+
+## Partie 6 — Réflexion
+
+**R1. Les 5 V, chiffrés.**
+**Volume** : 25 359 restaurants (Q1) pour un seul jeu de données municipal — à l'échelle de toutes les villes suivies par ce type de service, le volume réel serait bien supérieur. **Variété** : 85 cuisines distinctes (Q2), et une structure interne hétérogène d'un document à l'autre — 738 restaurants ont un tableau `grades` vide (Q14) tandis que 3 865 en ont au moins 6 (Q15) ; le modèle document absorbe naturellement cette irrégularité de schéma, impossible sans jointures variables en relationnel strict. **Véracité** : 13 documents portent un score négatif (Q18a), ce qui ne déplace la moyenne globale que de 0,0151 % (Q18b) — l'erreur est réelle mais son impact statistique est négligeable ; à l'inverse, les 51 documents `borough: "Missing"` (Q24) sont une erreur bien plus grave car irrécupérable par la requête.
+
+**R2. CAP & BASE, appliqué à ce service.**
+Prenons le restaurant de la Q11, **"Morris Park Bake Shop"** (`restaurant_id: "30075445"`), qui vient d'être fermé pour insalubrité. **(a) Cohérence (C)** : en cas de partition réseau, le nœud isolé refuse de répondre plutôt que de risquer une réponse obsolète — l'usager qui consulte la fiche voit une erreur ou un timeout, mais jamais d'information fausse. **(b) Disponibilité (A)** : l'application répond toujours, y compris depuis un nœud isolé n'ayant pas encore reçu la mise à jour de fermeture — l'usager voit alors une fiche potentiellement obsolète indiquant le restaurant encore ouvert et bien noté. Pour ce service de santé publique, je choisirais **C** : le dommage accepté est une **indisponibilité ponctuelle** (l'usager ne peut pas consulter la fiche pendant quelques secondes), jugé bien moins grave qu'un usager se rendant dans un restaurant fermé pour insalubrité sur la foi d'une donnée périmée.
+
+**R3. Embarqué vs référencé — le calcul.**
+**(a)** Sur le restaurant de la Q21 (`restaurant_id: "30075445"`, 6 notes après le `$push`), `bsonsize(db.restaurants.findOne({restaurant_id:"30075445"}))` renvoie **524 octets** (note : `Object.bsonsize` n'existe pas dans cette version de `mongosh`, la fonction globale `bsonsize()` a été utilisée à la place). Taille moyenne estimée par note : `524 / 6 ≈ 87,3 octets`. **(b)** Pour 520 notes (inspection hebdomadaire pendant 10 ans, cf. Q15) : `520 × 87,3 ≈ 45 400 octets ≈ 44,3 Ko`, à comparer à la **limite BSON de 16 Mo (16 777 216 octets)** — le modèle embarqué tient très largement, 44,3 Ko ne représentant que ≈ 0,27 % de la limite. **(c)** Avantage : un `findOne` unique récupère le restaurant et tout son historique de notes en un seul accès disque, sans jointure. Limite : chaque `$push` réécrit le document entier, ce qui devient coûteux bien avant le plafond de 16 Mo si la fréquence d'ajout est beaucoup plus élevée qu'une inspection hebdomadaire (logs, capteurs, activité utilisateur). Je basculerais vers un modèle référencé dès que le tableau dépasserait quelques milliers d'entrées par entité, pour des raisons de performance d'écriture, bien avant d'atteindre la limite technique.
 
 

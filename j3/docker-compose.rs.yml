@@ -1,0 +1,38 @@
+# Replica Set 3 noeuds (rs0).
+
+name: rslab
+
+services:
+  mongo1:
+    image: mongo:7.0
+    container_name: mongo1
+    hostname: mongo1
+    volumes: ["mongo1-data:/data/db"]
+    ports: ["27017:27017"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--oplogSize", "128"]
+
+  mongo2:
+    image: mongo:7.0
+    container_name: mongo2
+    hostname: mongo2
+    volumes: ["mongo2-data:/data/db"]
+    ports: ["27018:27017"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--oplogSize", "128"]
+
+  mongo3:
+    image: mongo:7.0
+    container_name: mongo3
+    hostname: mongo3
+    volumes: ["mongo3-data:/data/db"]
+    ports: ["27019:27017"]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--oplogSize", "128"]
+
+volumes:
+  mongo1-data: {}
+  mongo2-data: {}
+  mongo3-data: {}
+
+# Pas de "restart:" : arreter/tuer/redemarrer les noeuds a la main (docker stop / docker kill / docker start) 
+# pour chronometrer les bascules. Une politique "unless-stopped" redemarrerait le conteneur tout seul
+# apres un docker kill et fausserait les mesures.
+

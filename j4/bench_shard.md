@@ -101,12 +101,10 @@ celle qui dessert le moins bien la requête métier dominante.
 | `{ zip: 1 }` | Haute, **pas unique** (Jour 3 Q4 : doublons, `unique:true` a échoué en `E11000`) | Non mesurée (non shardée) | Ciblée seulement si l'appli filtre sur `zip`, or le besoin dominant filtre sur `state` | **Rejeté** — hors besoin métier réel |
 | `{ state: 1, zip: 1 }` | Haute (composée) | Non mesurée | Oui sur `state` (préfixe de la clé composée) ; Non sur `city` | **Meilleur compromis** — ciblage conservé + granularité plus fine que `state` seul |
 
-## À faire en fin de Partie B — vérification Q5(d)
+## Vérification Q5(d) — faite en fin de Partie B
 
-Cluster laissé allumé. Prédiction notée dans `reponses_jour4.md` (Q5d) :
-`orphanCleanupDelaySecs` par défaut = 900 s = 15 min → `estimatedDocumentCount()` devrait
-redescendre à 29 470 (= `countDocuments`). À relancer et comparer :
 ```js
-db.zips.countDocuments({})
-db.zips.estimatedDocumentCount()
+db.zips.countDocuments({})        // 29470
+db.zips.estimatedDocumentCount()  // 29470
 ```
+Prédiction confirmée (détail dans `reponses_jour4.md`, Q5d).

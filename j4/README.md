@@ -93,8 +93,6 @@ docker exec -i mongo-j4 mongosh -u admin -p ipssi2025 --authenticationDatabase a
 ## Fichiers fournis
 
 - `docker-compose.shard.yml` — cluster shardé (cfg1/shardA/shardB/mongos), mongo:7.0.
-- `setup-shard.sh` — les 5 étapes de montage du cluster, en texte à trou (support Q1, non
-  exécutable sous Windows sans WSL).
 - `docker-compose.yml` — instance standalone `mongo-j4` (Partie B), mongo:7.0.
 
 ## Fichiers produits (livrables)

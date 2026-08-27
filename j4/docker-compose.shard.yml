@@ -1,0 +1,53 @@
+# docker-compose.shard.yml
+#
+# Décrit les 4 conteneurs du cluster shardé (Partie A) 
+# Les conteneurs se joignent entre eux par leur
+# nom de service + port interne (27017) ; le port publié ne sert qu'à l'hôte.
+
+name: shardlab
+
+services:
+
+  # ─── Config server : stocke la carte de placement des chunks ───
+  cfg1:
+    image: mongo:7.0
+    container_name: cfg1
+    hostname: cfg1
+    volumes: ["cfg1-data:/data/db"]
+    ports: ["27119:27017"]
+    command: ["mongod", "--configsvr", "--replSet", "cfgRS", "--port", "27017", "--bind_ip_all"]
+
+  # ─── Shard A : un seul nœud dans son propre replica set ───
+  shardA:
+    image: mongo:7.0
+    container_name: shardA
+    hostname: shardA
+    volumes: ["shardA-data:/data/db"]
+    ports: ["27120:27017"]
+    command: ["mongod", "--shardsvr", "--replSet", "shardA", "--port", "27017", "--bind_ip_all"]
+
+  # ─── Shard B : un seul nœud dans son propre replica set ───
+  shardB:
+    image: mongo:7.0
+    container_name: shardB
+    hostname: shardB
+    volumes: ["shardB-data:/data/db"]
+    ports: ["27121:27017"]
+    command: ["mongod", "--shardsvr", "--replSet", "shardB", "--port", "27017", "--bind_ip_all"]
+
+  # ─── mongos : le routeur, pas de volume (il ne stocke rien) ───
+  mongos:
+    image: mongo:7.0
+    container_name: mongos
+    hostname: mongos
+    depends_on:
+      - cfg1
+      - shardA
+      - shardB
+    ports: ["27122:27017"]
+    command: ["mongos", "--configdb", "cfgRS/cfg1:27017", "--bind_ip_all"]
+
+volumes:
+  cfg1-data: {}
+  shardA-data: {}
+  shardB-data: {}
